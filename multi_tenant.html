@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Authentication</title>
+    <script type="module">
+        // Import Firebase libraries
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
+        import {
+            getAuth,
+            signInWithEmailAndPassword,
+            getMultiFactorResolver,
+            PhoneAuthProvider,
+            PhoneMultiFactorGenerator,
+            RecaptchaVerifier
+        } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDT61AF7Kvm5CzVWwvpT-M70_3bvLk4w-g",
+            authDomain: "adminsdk-2f2dc.firebaseapp.com",
+            projectId: "adminsdk-2f2dc",
+            storageBucket: "adminsdk-2f2dc.appspot.com",
+            messagingSenderId: "301977008285",
+            appId: "1:301977008285:web:8e8c7f2b88cf24ff037c74"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        // auth.tenantId = 'TestTaras-j2sue';
+
+        // Expose Firebase methods globally
+        window.firebaseAuth = {
+            auth,
+            signInWithEmailAndPassword,
+            getMultiFactorResolver,
+            PhoneAuthProvider,
+            PhoneMultiFactorGenerator,
+            RecaptchaVerifier
+        };
+    </script>
+    <script>
+        // Global sign-in function
+        function signIn() {
+            const { auth, signInWithEmailAndPassword, getMultiFactorResolver, PhoneAuthProvider, PhoneMultiFactorGenerator, RecaptchaVerifier } = window.firebaseAuth;
+            const email = 'taras.musiiko@gmail.com';
+            const password = '121212';
+
+            // Initialize reCAPTCHA
+            const recaptchaVerifier = new RecaptchaVerifier(auth,'recaptcha-container-id', {});
+
+            signInWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    console.log('Signed in:', userCredential.user);
+                    // User signed in without MFA.
+                })
+                .catch((error) => {
+                    if (error.code === 'auth/multi-factor-auth-required') {
+                        const resolver = getMultiFactorResolver(auth, error);
+
+                        // Handle MFA selection (for demo, we assume the first option is selected)
+                        const selectedIndex = 0; // Placeholder: update with user-selected factor
+                        const selectedHint = resolver.hints[selectedIndex];
+
+                        if (selectedHint.factorId === PhoneMultiFactorGenerator.FACTOR_ID) {
+                            const phoneAuthProvider = new PhoneAuthProvider(auth);
+
+                            const phoneInfoOptions = {
+                                multiFactorHint: selectedHint,
+                                session: resolver.session
+                            };
+
+                            // Send SMS code
+                            phoneAuthProvider.verifyPhoneNumber(phoneInfoOptions, recaptchaVerifier)
+                                .then((verificationId) => {
+                                    const verificationCode = prompt('Enter the verification code sent to your phone:'); // Prompt user
+                                    const cred = PhoneAuthProvider.credential(verificationId, verificationCode);
+                                    const assertion = PhoneMultiFactorGenerator.assertion(cred);
+
+                                    // Complete MFA sign-in
+                                    return resolver.resolveSignIn(assertion);
+                                })
+                                .then((userCredential) => {
+                                    console.log('MFA Sign-in successful:', userCredential.user);
+                                })
+                                .catch((mfaError) => {
+                                    console.error('MFA error:', mfaError);
+                                });
+                        } else {
+                            console.error('Unsupported second factor:', selectedHint.factorId);
+                        }
+                    } else {
+                        console.error('Sign-in error:', error);
+                    }
+                });
+        }
+    </script>
+</head>
+<body>
+    <h1>Firebase Authentication</h1>
+    <div id="recaptcha-container-id"></div> <!-- Recaptcha container -->
+    <button onclick="signIn()">Sign in</button>
+    <p>Check the browser console for authentication results.</p>
+</body>
+</html>
+
+
+

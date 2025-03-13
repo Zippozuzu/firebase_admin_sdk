@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Auth with OTP</title>
+</head>
+<body>
+    <h2>Sign in with Email and Password</h2>
+    <div>
+        <label for="email">Email:</label>
+        <input type="email" id="email" placeholder="Enter your email">
+    </div>
+    <div>
+        <label for="password">Password:</label>
+        <input type="password" id="password" placeholder="Enter your password">
+    </div>
+    <button id="sign-in-button">Sign In</button>
+
+    <!-- reCAPTCHA container -->
+    <div id="recaptcha-container-id"></div>
+
+    <!-- OTP input for 2FA -->
+    <div id="otp-container" style="display:none;">
+        <label for="otp">Enter OTP:</label>
+        <input type="text" id="otp" placeholder="Enter OTP">
+        <button id="verify-otp-button">Verify OTP</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+        import { getAuth, RecaptchaVerifier, signInWithEmailAndPassword, PhoneAuthProvider, PhoneMultiFactorGeneratorcd} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAEkyCp6jI0VhpVJ2_a2s8AlF9O_6H29Ps",
+            authDomain: "secondfa-5055a.firebaseapp.com",
+            projectId: "secondfa-5055a",
+            storageBucket: "secondfa-5055a.appspot.com",
+            messagingSenderId: "420580451075",
+            appId: "1:420580451075:web:23e3f7d9de7171f59cbf36"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // Initialize reCAPTCHA
+        function setupRecaptcha() {
+            window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container-id', {
+                'size': 'invisible', // 'normal' or 'invisible'
+                'callback': (response) => {
+                    console.log('reCAPTCHA verified:', response);
+                },
+                'expired-callback': () => {
+                    console.log('reCAPTCHA expired');
+                }
+            });
+        }
+
+        // Ensure reCAPTCHA is set up before signing in
+        setupRecaptcha();
+
+        // Handle Email/Password sign-in
+        document.getElementById('sign-in-button').addEventListener('click', () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            signInWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    const user = userCredential.user;
+                    if (user.multiFactor.enrolledFactors.length > 0) {
+                        // User is enrolled in 2FA; initiate the 2FA flow
+                        initiatePhoneVerification(user);
+                    } else {
+                        console.log("User signed in with email and password:", user);
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error during sign-in:", error);
+                });
+        });
+
+        function initiatePhoneVerification(user) {
+            const phoneAuthProvider = new PhoneAuthProvider(auth);
+            const multiFactorHint = user.multiFactor.enrolledFactors[0];
+            const session = user.multiFactor.session;
+            const phoneInfoOptions = {
+                multiFactorHint: multiFactorHint,
+                session: session
+            };
+
+            // Send OTP
+            phoneAuthProvider.verifyPhoneNumber(phoneInfoOptions, recaptchaVerifier)
+                .then((verificationId) => {
+                    window.verificationId = verificationId;
+                    document.getElementById('otp-container').style.display = 'block';
+                    console.log("OTP sent to the user's phone.");
+                })
+                .catch((error) => {
+                    console.error("Error sending OTP:", error);
+                });
+        }
+
+        // Handle OTP verification
+        document.getElementById('verify-otp-button').addEventListener('click', () => {
+            const otp = document.getElementById('otp').value;
+            const credential = PhoneAuthProvider.credential(window.verificationId, otp);
+            const user = getAuth().currentUser;
+
+            const multiFactorAssertion = PhoneMultiFactorGenerator.assertion(credential);
+
+            user.multiFactor.enroll(multiFactorAssertion)
+                .then(() => {
+                    console.log("User signed in with 2FA");
+                })
+                .catch((error) => {
+                    console.error("Error verifying OTP:", error);
+                });
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
